@@ -6,3 +6,19 @@ node_modules
 .idea
 .vscode
 openapi.json
+
+# 构建产物
+build/
+dist/
+*.tar.gz
+*.zip
+
+# 编译后的二进制文件
+opencode
+opencode-*
+packages/tui/opencode
+packages/tui/dist/
+
+# 临时文件
+*.tmp
+*.log

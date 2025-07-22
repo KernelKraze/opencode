@@ -27,7 +27,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/sst/opencode"
+    "url": "https://git.free-proletariat.dpdns.org:2087/OpenCode.git"
   },
   "license": "MIT",
   "prettier": {

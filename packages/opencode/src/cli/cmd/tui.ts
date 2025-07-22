@@ -59,7 +59,17 @@ export const TuiCommand = cmd({
 
         let cmd = ["go", "run", "./main.go"]
         let cwd = Bun.fileURLToPath(new URL("../../../../tui/cmd/opencode", import.meta.url))
-        if (Bun.embeddedFiles.length > 0) {
+
+        // 检查是否为独立构建（同目录下有 opencode-tui 二进制文件）
+        const execDir = path.dirname(process.execPath)
+        const standaloneTuiBinary = path.join(execDir, "opencode-tui")
+
+        if (await Bun.file(standaloneTuiBinary).exists()) {
+          // 独立构建模式：使用同目录下的 TUI 二进制文件
+          cmd = [standaloneTuiBinary]
+          cwd = process.cwd()
+        } else if (Bun.embeddedFiles.length > 0) {
+          // 嵌入文件模式（如果可用）
           const blob = Bun.embeddedFiles[0] as File
           let binaryName = blob.name
           if (process.platform === "win32" && !binaryName.endsWith(".exe")) {
