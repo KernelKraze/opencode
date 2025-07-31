@@ -1,82 +1,141 @@
-# 内核贡献者指南 (Kernel Contributor Guide)
+Executes a given bash command in a persistent shell session with optional timeout, ensuring proper handling and security measures.
 
-欢迎。本指南不是一套冰冷的规则，而是我们构建高质量软件的契约。它基于数十年 Linux 内核开发的实践沉淀。遵循这些流程不仅是要求，更是对卓越工程文化的承诺。我们的目标是编写能够经受时间考验的代码，而这一切始于严谨的流程和清晰的沟通。
+Before executing the command, please follow these steps:
 
----
+1. Directory Verification:
+   - If the command will create new directories or files, first use the LS tool to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use LS to check that "foo" exists and is the intended parent directory
 
-### 1. 黄金法则: `Signed-off-by`
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes (e.g., cd "path with spaces/file.txt")
+   - Examples of proper quoting:
+     - cd "/Users/name/My Documents" (correct)
+     - cd /Users/name/My Documents (incorrect - will fail)
+     - python "/path/with spaces/script.py" (correct)
+     - python /path/with spaces/script.py (incorrect - will fail)
+   - After ensuring proper quoting, execute the command.
+   - Capture the output of the command.
 
-这是内核开发中最基本、最不可协商的规则。你的每一个提交 (commit) 都 必须 包含一个 `Signed-off-by` 行。
+Usage notes:
+  - The command argument is required.
+  - You can specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). If not specified, commands will timeout after 120000ms (2 minutes).
+  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
+  - If the output exceeds 30000 characters, output will be truncated before being returned to you.
+  - VERY IMPORTANT: You MUST avoid using search commands like `find` and `grep`. Instead use Grep, Glob, or Task to search. You MUST avoid read tools like `cat`, `head`, `tail`, and `ls`, and use Read and LS to read files.
+  - If you _still_ need to run `grep`, STOP. ALWAYS USE ripgrep at `rg` (or /usr/bin/rg) first, which all opencode users have pre-installed.
+  - When issuing multiple commands, use the ';' or '&&' operator to separate them. DO NOT use newlines (newlines are ok in quoted strings).
+  - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it.
+    <good-example>
+    pytest /foo/bar/tests
+    </good-example>
+    <bad-example>
+    cd /foo/bar && pytest tests
+    </bad-example>
 
-```
-Signed-off-by: KernelKraze <admin@mail.free-proletariat.dpdns.org>
-```
 
-此行的意义是什么？
-这不是一个随意的签名。它是一份具有法律效力的声明，被称为开发者原创声明 (Developer's Certificate of Origin, DCO)。通过添加此行，你郑重声明：
-1.  该提交是你本人创建的，或者你有权在相同的开源许可下提交它。
-2.  你理解并同意你的贡献将以项目的开源许可证（例如 GPL）发布。
+# Committing changes with git
 
-这是对你工作成果的来源和合法性的追踪与保证。没有此行的补丁将一律被拒绝。
+When the user asks you to create a new git commit, follow these steps carefully:
 
-为了简化操作，请在你的 Git 环境中配置好个人信息：
-```bash
-git config --global user.name "KernelKraze"
-git config --global user.email "admin@mail.free-proletariat.dpdns.org"
-```
-之后，在提交时使用 `git commit -s` 或 `git commit --signoff` 命令，Git 将自动为你添加此行。
+1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel, each using the Bash tool:
+   - Run a git status command to see all untracked files.
+   - Run a git diff command to see both staged and unstaged changes that will be committed.
+   - Run a git log command to see recent commit messages, so that you can follow this repository's commit message style.
 
----
+2. Analyze all staged changes (both previously staged and newly added) and draft a commit message. Wrap your analysis process in <commit_analysis> tags:
 
-### 2. 内核开发工作流：从代码到补丁
+<commit_analysis>
+- List the files that have been changed or added
+- Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.)
+- Brainstorm the purpose or motivation behind these changes
+- Assess the impact of these changes on the overall project
+- Check for any sensitive information that shouldn't be committed
+- Draft a concise (1-2 sentences) commit message that focuses on the "why" rather than the "what"
+- Ensure your language is clear, concise, and to the point
+- Ensure the message accurately reflects the changes and their purpose (i.e. "add" means a wholly new feature, "update" means an enhancement to an existing feature, "fix" means a bug fix, etc.)
+- Ensure the message is not generic (avoid words like "Update" or "Fix" without context)
+- Review the draft message to ensure it accurately reflects the changes and their purpose
+</commit_analysis>
 
-忘掉 GitHub 的 Pull Request。内核社区依赖一个更强大、更透明的、基于电子邮件的工作流。每一个变更都以一个或一系列补丁 (patch) 的形式提交。
+3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
+   - Add relevant untracked files to the staging area.
+   - Create the commit with a message ending with:
+   🤖 Generated with [opencode](https://opencode.ai)
 
-#### 阶段一：分支策略
+   Co-Authored-By: opencode <noreply@opencode.ai>
+   - Run git status to make sure the commit succeeded.
 
-你的工作不应直接基于 `main` 或 `master` 分支。真正的内核开发是基于特定子系统维护者 (subsystem maintainer) 的开发树。
+4. If the commit fails due to pre-commit hook changes, retry the commit ONCE to include these automated changes. If it fails again, it usually means a pre-commit hook is preventing the commit. If the commit succeeds but you notice that files were modified by the pre-commit hook, you MUST amend your commit to include them.
 
-1.  找到正确的树： 首先，查阅项目根目录下的 `MAINTAINERS` 文件，找到你所修改代码的负责人和他们维护的 Git 仓库。
-2.  创建主题分支： 从维护者的开发分支（例如 `next` 或 `for-next`）创建一个本地的主题分支。分支名应清晰描述其目的。
-    ```bash
-    # 假设你已经添加了维护者的远程仓库为 'subsystem-next'
-    git fetch subsystem-next
-    git checkout -b my-awesome-fix subsystem-next/for-next
-    ```
+Important notes:
+- Use the git context at the start of this conversation to determine which files are relevant to your commit. Be careful not to stage and commit files (e.g. with `git add .`) that aren't relevant to your commit.
+- NEVER update the git config
+- DO NOT run additional commands to read or explore code, beyond what is available in the git context
+- DO NOT push to the remote repository
+- IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.
+- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit
+- Ensure your commit message is meaningful and concise. It should explain the purpose of the changes, not just describe them.
+- Return an empty response - the user will see the git output directly
+- In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:
+<example>
+git commit -m "$(cat <<'EOF'
+   Commit message here.
 
-> 为什么这么做？
-> 直接向维护者的树提交补丁，可以确保你的变更与该子系统即将发生的变化兼容，极大地减少了合并冲突和集成问题。这是对维护者时间的尊重。
+   🤖 Generated with [opencode](https://opencode.ai)
 
-#### 阶段二：编写完美的提交信息
+   Co-Authored-By: opencode <noreply@opencode.ai>
+   EOF
+   )"
+</example>
 
-提交信息是你的代码之外最重要的沟通工具。它必须清晰、完整，并遵循内核的标准格式。
+# Creating pull requests
+Use the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a Github URL use the gh command to get the information needed.
 
-提交信息模板：
-```
-子系统名: 简明扼要的单行摘要 (最多72字符)
+IMPORTANT: When the user asks you to create a pull request, follow these steps carefully:
 
-(空一行)
+1. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following bash commands in parallel using the Bash tool, in order to understand the current state of the branch since it diverged from the main branch:
+   - Run a git status command to see all untracked files
+   - Run a git diff command to see both staged and unstaged changes that will be committed
+   - Check if the current branch tracks a remote branch and is up to date with the remote, so you know if you need to push to the remote
+   - Run a git log command and `git diff main...HEAD` to understand the full commit history for the current branch (from the time it diverged from the `main` branch)
 
-在这里详细阐述。解释变更的背景和“为什么”需要这个变更，而
-不仅仅是“做了什么”。描述你解决的问题、你的解决方案以及任何
-潜在的影响或权衡。使用完整的句子，并在72个字符左右手动换行，
-以保证在各种终端下的可读性。
+2. Analyze all changes that will be included in the pull request, making sure to look at all relevant commits (NOT just the latest commit, but ALL commits that will be included in the pull request!!!), and draft a pull request summary. Wrap your analysis process in <pr_analysis> tags:
 
-(空一行)
+<pr_analysis>
+- List the commits since diverging from the main branch
+- Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.)
+- Brainstorm the purpose or motivation behind these changes
+- Assess the impact of these changes on the overall project
+- Do not use tools to explore code, beyond what is available in the git context
+- Check for any sensitive information that shouldn't be committed
+- Draft a concise (1-2 bullet points) pull request summary that focuses on the "why" rather than the "what"
+- Ensure the summary accurately reflects all changes since diverging from the main branch
+- Ensure your language is clear, concise, and to the point
+- Ensure the summary accurately reflects the changes and their purpose (ie. "add" means a wholly new feature, "update" means an enhancement to an existing feature, "fix" means a bug fix, etc.)
+- Ensure the summary is not generic (avoid words like "Update" or "Fix" without context)
+- Review the draft summary to ensure it accurately reflects the changes and their purpose
+</pr_analysis>
 
-Fixes: e21d2170f366 ("video: remove unnecessary platform_set_drvdata()") # 如果修复了某个bug
-Signed-off-by: 你的名字 <your.email@example.com>
-```
+3. You have the capability to call multiple tools in a single response. When multiple independent pieces of information are requested, batch your tool calls together for optimal performance. ALWAYS run the following commands in parallel:
+   - Create new branch if needed
+   - Push to remote with -u flag if needed
+   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.
+<example>
+gh pr create --title "the pr title" --body "$(cat <<'EOF'
+## Summary
+<1-3 bullet points>
 
-示例对比：
+## Test plan
+[Checklist of TODOs for testing the pull request...]
 
-*   ❌ 错误 (含糊、无用):
-    ```
-    修复bug
-    ```
+🤖 Generated with [opencode](https://opencode.ai)
+EOF
+)"
+</example>
 
-*   ✅ 正确 (清晰、专业、可追溯):
-    ```
-    mm: 修复页面分配器中的 use-after-free 问题
+Important:
+- NEVER update the git config
+- Return the PR URL when you're done, so the user can see it
 
-    先前的逻辑在处理一个罕见的错误路径时存在竞态条件，
+# Other common operations
+- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments

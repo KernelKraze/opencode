@@ -12,6 +12,7 @@ import { Bus } from "../../bus"
 import { Log } from "../../util/log"
 import { FileWatcher } from "../../file/watch"
 import { Mode } from "../../session/mode"
+import { Ide } from "../../ide"
 
 export const TuiCommand = cmd({
   command: "$0 [project]",
@@ -35,6 +36,17 @@ export const TuiCommand = cmd({
       .option("mode", {
         type: "string",
         describe: "mode to use",
+      })
+      .option("port", {
+        type: "number",
+        describe: "port to listen on",
+        default: 0,
+      })
+      .option("hostname", {
+        alias: ["h"],
+        type: "string",
+        describe: "hostname to listen on",
+        default: "127.0.0.1",
       }),
   handler: async (args) => {
     while (true) {
@@ -53,23 +65,13 @@ export const TuiCommand = cmd({
         }
 
         const server = Server.listen({
-          port: 0,
-          hostname: "127.0.0.1",
+          port: args.port,
+          hostname: args.hostname,
         })
 
         let cmd = ["go", "run", "./main.go"]
         let cwd = Bun.fileURLToPath(new URL("../../../../tui/cmd/opencode", import.meta.url))
-
-        // 检查是否为独立构建（同目录下有 opencode-tui 二进制文件）
-        const execDir = path.dirname(process.execPath)
-        const standaloneTuiBinary = path.join(execDir, "opencode-tui")
-
-        if (await Bun.file(standaloneTuiBinary).exists()) {
-          // 独立构建模式：使用同目录下的 TUI 二进制文件
-          cmd = [standaloneTuiBinary]
-          cwd = process.cwd()
-        } else if (Bun.embeddedFiles.length > 0) {
-          // 嵌入文件模式（如果可用）
+        if (Bun.embeddedFiles.length > 0) {
           const blob = Bun.embeddedFiles[0] as File
           let binaryName = blob.name
           if (process.platform === "win32" && !binaryName.endsWith(".exe")) {
@@ -111,7 +113,7 @@ export const TuiCommand = cmd({
         })
 
         ;(async () => {
-          if (Installation.VERSION === "dev") return
+          if (Installation.isDev()) return
           if (Installation.isSnapshot()) return
           const config = await Config.global()
           if (config.autoupdate === false) return
@@ -121,9 +123,15 @@ export const TuiCommand = cmd({
           const method = await Installation.method()
           if (method === "unknown") return
           await Installation.upgrade(method, latest)
-            .then(() => {
-              Bus.publish(Installation.Event.Updated, { version: latest })
-            })
+            .then(() => Bus.publish(Installation.Event.Updated, { version: latest }))
+            .catch(() => {})
+        })()
+        ;(async () => {
+          if (Ide.alreadyInstalled()) return
+          const ide = Ide.ide()
+          if (ide === "unknown") return
+          await Ide.install(ide)
+            .then(() => Bus.publish(Ide.Event.Installed, { ide }))
             .catch(() => {})
         })()
 

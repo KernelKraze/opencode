@@ -17,6 +17,7 @@ import { File } from "../file"
 import { LSP } from "../lsp"
 import { MessageV2 } from "../session/message-v2"
 import { Mode } from "../session/mode"
+import { callTui, TuiRoute } from "./tui"
 
 const ERRORS = {
   400: {
@@ -42,6 +43,10 @@ export namespace Server {
 
   export type Routes = ReturnType<typeof app>
 
+  export const Event = {
+    Connected: Bus.event("server.connected", z.object({})),
+  }
+
   function app() {
     const app = new Hono()
 
@@ -57,15 +62,20 @@ export namespace Server {
         })
       })
       .use(async (c, next) => {
-        log.info("request", {
-          method: c.req.method,
-          path: c.req.path,
-        })
+        const skipLogging = c.req.path === "/log"
+        if (!skipLogging) {
+          log.info("request", {
+            method: c.req.method,
+            path: c.req.path,
+          })
+        }
         const start = Date.now()
         await next()
-        log.info("response", {
-          duration: Date.now() - start,
-        })
+        if (!skipLogging) {
+          log.info("response", {
+            duration: Date.now() - start,
+          })
+        }
       })
       .get(
         "/doc",
@@ -103,7 +113,10 @@ export namespace Server {
           log.info("event connected")
           return streamSSE(c, async (stream) => {
             stream.writeSSE({
-              data: JSON.stringify({}),
+              data: JSON.stringify({
+                type: "server.connected",
+                properties: {},
+              }),
             })
             const unsub = Bus.subscribeAll(async (event) => {
               await stream.writeSSE({
@@ -195,6 +208,7 @@ export namespace Server {
         }),
         async (c) => {
           const sessions = await Array.fromAsync(Session.list())
+          sessions.sort((a, b) => b.time.updated - a.time.updated)
           return c.json(sessions)
         },
       )
@@ -459,6 +473,62 @@ export namespace Server {
           return c.json(msg)
         },
       )
+      .post(
+        "/session/:id/revert",
+        describeRoute({
+          description: "Revert a message",
+          responses: {
+            200: {
+              description: "Updated session",
+              content: {
+                "application/json": {
+                  schema: resolver(Session.Info),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
+          }),
+        ),
+        zValidator("json", Session.RevertInput.omit({ sessionID: true })),
+        async (c) => {
+          const id = c.req.valid("param").id
+          log.info("revert", c.req.valid("json"))
+          const session = await Session.revert({ sessionID: id, ...c.req.valid("json") })
+          return c.json(session)
+        },
+      )
+      .post(
+        "/session/:id/unrevert",
+        describeRoute({
+          description: "Restore all reverted messages",
+          responses: {
+            200: {
+              description: "Updated session",
+              content: {
+                "application/json": {
+                  schema: resolver(Session.Info),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "param",
+          z.object({
+            id: z.string(),
+          }),
+        ),
+        async (c) => {
+          const id = c.req.valid("param").id
+          const session = await Session.unrevert({ sessionID: id })
+          return c.json(session)
+        },
+      )
       .get(
         "/config/providers",
         describeRoute({
@@ -703,6 +773,47 @@ export namespace Server {
           return c.json(modes)
         },
       )
+      .post(
+        "/tui/append-prompt",
+        describeRoute({
+          description: "Append prompt to the TUI",
+          responses: {
+            200: {
+              description: "Prompt processed successfully",
+              content: {
+                "application/json": {
+                  schema: resolver(z.boolean()),
+                },
+              },
+            },
+          },
+        }),
+        zValidator(
+          "json",
+          z.object({
+            text: z.string(),
+          }),
+        ),
+        async (c) => c.json(await callTui(c)),
+      )
+      .post(
+        "/tui/open-help",
+        describeRoute({
+          description: "Open the help dialog",
+          responses: {
+            200: {
+              description: "Help dialog opened successfully",
+              content: {
+                "application/json": {
+                  schema: resolver(z.boolean()),
+                },
+              },
+            },
+          },
+        }),
+        async (c) => c.json(await callTui(c)),
+      )
+      .route("/tui/control", TuiRoute)
 
     return result
   }

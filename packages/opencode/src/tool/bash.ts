@@ -7,12 +7,11 @@ const MAX_OUTPUT_LENGTH = 30000
 const DEFAULT_TIMEOUT = 1 * 60 * 1000
 const MAX_TIMEOUT = 10 * 60 * 1000
 
-export const BashTool = Tool.define({
-  id: "bash",
+export const BashTool = Tool.define("bash", {
   description: DESCRIPTION,
   parameters: z.object({
     command: z.string().describe("The command to execute"),
-    timeout: z.number().min(0).max(MAX_TIMEOUT).describe("Optional timeout in milliseconds").optional(),
+    timeout: z.number().describe("Optional timeout in milliseconds").optional(),
     description: z
       .string()
       .describe(

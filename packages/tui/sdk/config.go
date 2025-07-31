@@ -43,6 +43,8 @@ func (r *ConfigService) Get(ctx context.Context, opts ...option.RequestOption) (
 type Config struct {
 	// JSON schema reference for configuration validation
 	Schema string `json:"$schema"`
+	// Modes configuration, see https://opencode.ai/docs/modes
+	Agent ConfigAgent `json:"agent"`
 	// @deprecated Use 'share' field instead. Share newly created sessions
 	// automatically
 	Autoshare bool `json:"autoshare"`
@@ -57,8 +59,6 @@ type Config struct {
 	Keybinds KeybindsConfig `json:"keybinds"`
 	// @deprecated Always uses stretch layout.
 	Layout ConfigLayout `json:"layout"`
-	// Minimum log level to write to log files
-	LogLevel LogLevel `json:"log_level"`
 	// MCP (Model Context Protocol) server configurations
 	Mcp map[string]ConfigMcp `json:"mcp"`
 	// Modes configuration, see https://opencode.ai/docs/modes
@@ -83,6 +83,7 @@ type Config struct {
 // configJSON contains the JSON metadata for the struct [Config]
 type configJSON struct {
 	Schema            apijson.Field
+	Agent             apijson.Field
 	Autoshare         apijson.Field
 	Autoupdate        apijson.Field
 	DisabledProviders apijson.Field
@@ -90,7 +91,6 @@ type configJSON struct {
 	Instructions      apijson.Field
 	Keybinds          apijson.Field
 	Layout            apijson.Field
-	LogLevel          apijson.Field
 	Mcp               apijson.Field
 	Mode              apijson.Field
 	Model             apijson.Field
@@ -108,6 +108,50 @@ func (r *Config) UnmarshalJSON(data []byte) (err error) {
 }
 
 func (r configJSON) RawJSON() string {
+	return r.raw
+}
+
+// Modes configuration, see https://opencode.ai/docs/modes
+type ConfigAgent struct {
+	General     ConfigAgentGeneral     `json:"general"`
+	ExtraFields map[string]ConfigAgent `json:"-,extras"`
+	JSON        configAgentJSON        `json:"-"`
+}
+
+// configAgentJSON contains the JSON metadata for the struct [ConfigAgent]
+type configAgentJSON struct {
+	General     apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *ConfigAgent) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r configAgentJSON) RawJSON() string {
+	return r.raw
+}
+
+type ConfigAgentGeneral struct {
+	Description string                 `json:"description,required"`
+	JSON        configAgentGeneralJSON `json:"-"`
+	ModeConfig
+}
+
+// configAgentGeneralJSON contains the JSON metadata for the struct
+// [ConfigAgentGeneral]
+type configAgentGeneralJSON struct {
+	Description apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *ConfigAgentGeneral) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r configAgentGeneralJSON) RawJSON() string {
 	return r.raw
 }
 
@@ -336,7 +380,7 @@ type ConfigProvider struct {
 	Env     []string                       `json:"env"`
 	Name    string                         `json:"name"`
 	Npm     string                         `json:"npm"`
-	Options map[string]interface{}         `json:"options"`
+	Options ConfigProviderOptions          `json:"options"`
 	JSON    configProviderJSON             `json:"-"`
 }
 
@@ -450,6 +494,30 @@ func (r configProviderModelsLimitJSON) RawJSON() string {
 	return r.raw
 }
 
+type ConfigProviderOptions struct {
+	APIKey      string                    `json:"apiKey"`
+	BaseURL     string                    `json:"baseURL"`
+	ExtraFields map[string]interface{}    `json:"-,extras"`
+	JSON        configProviderOptionsJSON `json:"-"`
+}
+
+// configProviderOptionsJSON contains the JSON metadata for the struct
+// [ConfigProviderOptions]
+type configProviderOptionsJSON struct {
+	APIKey      apijson.Field
+	BaseURL     apijson.Field
+	raw         string
+	ExtraFields map[string]apijson.Field
+}
+
+func (r *ConfigProviderOptions) UnmarshalJSON(data []byte) (err error) {
+	return apijson.UnmarshalRoot(data, r)
+}
+
+func (r configProviderOptionsJSON) RawJSON() string {
+	return r.raw
+}
+
 // Control sharing behavior:'manual' allows manual sharing via commands, 'auto'
 // enables automatic sharing, 'disabled' disables all sharing
 type ConfigShare string
@@ -513,8 +581,12 @@ type KeybindsConfig struct {
 	MessagesPageUp string `json:"messages_page_up,required"`
 	// Navigate to previous message
 	MessagesPrevious string `json:"messages_previous,required"`
-	// Revert message
+	// Redo message
+	MessagesRedo string `json:"messages_redo,required"`
+	// @deprecated use messages_undo. Revert message
 	MessagesRevert string `json:"messages_revert,required"`
+	// Undo message
+	MessagesUndo string `json:"messages_undo,required"`
 	// List available models
 	ModelList string `json:"model_list,required"`
 	// Create/update AGENTS.md
@@ -568,7 +640,9 @@ type keybindsConfigJSON struct {
 	MessagesPageDown     apijson.Field
 	MessagesPageUp       apijson.Field
 	MessagesPrevious     apijson.Field
+	MessagesRedo         apijson.Field
 	MessagesRevert       apijson.Field
+	MessagesUndo         apijson.Field
 	ModelList            apijson.Field
 	ProjectInit          apijson.Field
 	SessionCompact       apijson.Field
@@ -689,16 +763,20 @@ func (r McpRemoteConfigType) IsKnown() bool {
 }
 
 type ModeConfig struct {
-	Model  string          `json:"model"`
-	Prompt string          `json:"prompt"`
-	Tools  map[string]bool `json:"tools"`
-	JSON   modeConfigJSON  `json:"-"`
+	Disable     bool            `json:"disable"`
+	Model       string          `json:"model"`
+	Prompt      string          `json:"prompt"`
+	Temperature float64         `json:"temperature"`
+	Tools       map[string]bool `json:"tools"`
+	JSON        modeConfigJSON  `json:"-"`
 }
 
 // modeConfigJSON contains the JSON metadata for the struct [ModeConfig]
 type modeConfigJSON struct {
+	Disable     apijson.Field
 	Model       apijson.Field
 	Prompt      apijson.Field
+	Temperature apijson.Field
 	Tools       apijson.Field
 	raw         string
 	ExtraFields map[string]apijson.Field

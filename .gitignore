@@ -1,24 +1,25 @@
 .DS_Store
 node_modules
-.opencode
 .sst
 .env
 .idea
 .vscode
 openapi.json
+scratch
 
-# 构建产物
+# 构建产物和分发文件
 build/
 dist/
+windows-unified/
+
+# 临时文件和报告
+.temp/
+
+# Go 构建产物
+packages/tui/internal/backend/binaries/
+
+# 其他构建产物
+*.exe
 *.tar.gz
 *.zip
-
-# 编译后的二进制文件
-opencode
-opencode-*
-packages/tui/opencode
-packages/tui/dist/
-
-# 临时文件
-*.tmp
-*.log
+*.sha256

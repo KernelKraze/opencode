@@ -6,7 +6,9 @@ import (
 	"container/list"
 	"crypto/sha256"
 	"fmt"
+	"hash/fnv"
 	"sync"
+	"time"
 )
 
 // Hasher is an interface that requires a Hash method. The Hash method is
@@ -108,18 +110,118 @@ func (m *MemoCache[H, T]) Set(h H, value T) {
 	m.hashableItems[hashedKey] = value // if you're keeping track of original items
 }
 
-// HString is a type that implements the Hasher interface for strings.
-type HString string
+// HashVersion represents the cache version for compatibility
+const (
+	HashVersionV1 = "v1" // SHA256 (legacy)
+	HashVersionV2 = "v2" // FNV-1a (current)
+)
 
-// Hash is a method that returns the hash of the string.
-func (h HString) Hash() string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(h)))
+// VersionedHasher extends Hasher with version-aware hashing
+type VersionedHasher interface {
+	Hasher
+	HashWithVersion(version string) string
 }
 
-// HInt is a type that implements the Hasher interface for integers.
+// HString is a type that implements the VersionedHasher interface for strings.
+type HString string
+
+// Hash returns the current version hash (FNV-1a for performance)
+func (h HString) Hash() string {
+	return h.HashWithVersion(HashVersionV2)
+}
+
+// HashWithVersion returns hash based on specified version for compatibility
+func (h HString) HashWithVersion(version string) string {
+	data := []byte(h)
+	switch version {
+	case HashVersionV1:
+		// Legacy SHA256 for backward compatibility
+		hash := sha256.Sum256(data)
+		return fmt.Sprintf("v1:%x", hash)
+	case HashVersionV2:
+		// Fast FNV-1a for performance
+		hasher := fnv.New64a()
+		hasher.Write(data)
+		return fmt.Sprintf("v2:%x", hasher.Sum64())
+	default:
+		// Default to current version
+		return h.HashWithVersion(HashVersionV2)
+	}
+}
+
+// HInt is a type that implements the VersionedHasher interface for integers.
 type HInt int
 
-// Hash is a method that returns the hash of the integer.
+// Hash returns the current version hash (FNV-1a for performance)
 func (h HInt) Hash() string {
-	return fmt.Sprintf("%x", sha256.Sum256([]byte(fmt.Sprintf("%d", h))))
+	return h.HashWithVersion(HashVersionV2)
+}
+
+// HashWithVersion returns hash based on specified version for compatibility
+func (h HInt) HashWithVersion(version string) string {
+	data := []byte(fmt.Sprintf("%d", h))
+	switch version {
+	case HashVersionV1:
+		// Legacy SHA256 for backward compatibility
+		hash := sha256.Sum256(data)
+		return fmt.Sprintf("v1:%x", hash)
+	case HashVersionV2:
+		// Fast FNV-1a for performance
+		hasher := fnv.New64a()
+		hasher.Write(data)
+		return fmt.Sprintf("v2:%x", hasher.Sum64())
+	default:
+		// Default to current version
+		return h.HashWithVersion(HashVersionV2)
+	}
+}
+
+// MigrationAwareCache extends MemoCache with version migration support
+type MigrationAwareCache[H VersionedHasher, T any] struct {
+	*MemoCache[H, T]
+	migrationDeadline time.Time
+}
+
+// NewMigrationAwareCache creates a cache that supports hash version migration
+func NewMigrationAwareCache[H VersionedHasher, T any](capacity int, migrationPeriod time.Duration) *MigrationAwareCache[H, T] {
+	return &MigrationAwareCache[H, T]{
+		MemoCache:         NewMemoCache[H, T](capacity),
+		migrationDeadline: time.Now().Add(migrationPeriod),
+	}
+}
+
+// Get attempts to retrieve value using current hash, falls back to legacy hash during migration
+func (m *MigrationAwareCache[H, T]) Get(h H) (T, bool) {
+	// Try current version first (FNV-1a)
+	if value, found := m.MemoCache.Get(h); found {
+		return value, true
+	}
+
+	// During migration period, also check legacy hash (SHA256)
+	if time.Now().Before(m.migrationDeadline) {
+		// Create a temporary hasher for legacy lookup
+		legacyKey := h.HashWithVersion(HashVersionV1)
+		m.mutex.Lock()
+		defer m.mutex.Unlock()
+
+		if element, found := m.cache[legacyKey]; found {
+			// Found in legacy format, migrate to new format
+			value := element.Value.(*entry[T]).value
+
+			// Remove from legacy location
+			m.evictionList.Remove(element)
+			delete(m.cache, legacyKey)
+			delete(m.hashableItems, legacyKey)
+
+			// Add to new location (this will use current hash version)
+			m.mutex.Unlock() // Unlock before calling Set to avoid deadlock
+			m.Set(h, value)
+			m.mutex.Lock() // Re-lock for defer
+
+			return value, true
+		}
+	}
+
+	var result T
+	return result, false
 }

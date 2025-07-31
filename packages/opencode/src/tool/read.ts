@@ -10,13 +10,12 @@ import { App } from "../app/app"
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
 
-export const ReadTool = Tool.define({
-  id: "read",
+export const ReadTool = Tool.define("read", {
   description: DESCRIPTION,
   parameters: z.object({
     filePath: z.string().describe("The path to the file to read"),
-    offset: z.number().describe("The line number to start reading from (0-based)").optional(),
-    limit: z.number().describe("The number of lines to read (defaults to 2000)").optional(),
+    offset: z.coerce.number().describe("The line number to start reading from (0-based)").optional(),
+    limit: z.coerce.number().describe("The number of lines to read (defaults to 2000)").optional(),
   }),
   async execute(params, ctx) {
     let filePath = params.filePath
@@ -49,6 +48,8 @@ export const ReadTool = Tool.define({
     const offset = params.offset || 0
     const isImage = isImageFile(filePath)
     if (isImage) throw new Error(`This is an image file of type: ${isImage}\nUse a different tool to process images`)
+    const isBinary = await isBinaryFile(file)
+    if (isBinary) throw new Error(`Cannot read binary file: ${filePath}`)
     const lines = await file.text().then((text) => text.split("\n"))
     const raw = lines.slice(offset, offset + limit).map((line) => {
       return line.length > MAX_LINE_LENGTH ? line.substring(0, MAX_LINE_LENGTH) + "..." : line
@@ -99,4 +100,15 @@ function isImageFile(filePath: string): string | false {
     default:
       return false
   }
+}
+
+async function isBinaryFile(file: Bun.BunFile): Promise<boolean> {
+  const buffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(buffer.slice(0, 512)) // Check first 512 bytes
+
+  for (let i = 0; i < bytes.length; i++) {
+    if (bytes[i] === 0) return true // Null byte indicates binary
+  }
+
+  return false
 }

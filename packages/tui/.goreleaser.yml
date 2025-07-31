@@ -13,7 +13,7 @@ builds:
       - arm64
     ldflags:
       - -s -w -X github.com/sst/opencode/internal/version.Version={{.Version}}
-    main: ./cmd/opencode/main.go
+    main: ./main.go
 
 archives:
   - format: tar.gz

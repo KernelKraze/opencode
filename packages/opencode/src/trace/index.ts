@@ -1,14 +1,11 @@
 import { Global } from "../global"
 import { Installation } from "../installation"
 import path from "path"
-import fs from "fs/promises"
 
 export namespace Trace {
-  export async function init() {
+  export function init() {
     if (!Installation.isDev()) return
-    const logDir = path.join(Global.Path.data, "log")
-    await fs.mkdir(logDir, { recursive: true })
-    const writer = Bun.file(path.join(logDir, "fetch.log")).writer()
+    const writer = Bun.file(path.join(Global.Path.data, "log", "fetch.log")).writer()
 
     const originalFetch = globalThis.fetch
     // @ts-expect-error
