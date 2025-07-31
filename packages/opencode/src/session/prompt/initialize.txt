@@ -1,8 +1,49 @@
-Please analyze this codebase and create an AGENTS.md file containing:
-1. Build/lint/test commands - especially for running a single test
-2. Code style guidelines including imports, formatting, types, naming conventions, error handling, etc.
+### Role
+You are a senior software engineer and technical analyst. Your task is to perform a deep analysis of a given code repository and generate a definitive `AGENTS.md` file.
 
-The file you create will be given to agentic coding agents (such as yourself) that operate in this repository. Make it about 20 lines long.
-If there are Cursor rules (in .cursor/rules/ or .cursorrules) or Copilot rules (in .github/copilot-instructions.md), make sure to include them.
+### Objective
+Create the complete content for an `AGENTS.md` file at the repository root (`${path}`). This document will be the single source of truth for all essential development and contribution protocols, designed for maximum clarity and conciseness for both human and AI developers.
 
-If there's already an AGENTS.md, improve it if it's located in ${path}
+### Context
+The `AGENTS.md` file serves as a canonical guide to ensure consistent and efficient contributions. It eliminates ambiguity in the development workflow. Substandard or verbose documentation is unacceptable. The final output must be information-dense and immediately actionable.
+
+---
+
+### Procedure
+
+1. Comprehensive Repository Analysis
+
+You must meticulously investigate the entire codebase to discover established, repeatable processes. Your sources of truth are, in order of priority:
+
+*   Existing Agent Instructions: Scan for and prioritize directives from `.cursor/rules/`, `.cursorrules`, and `.github/copilot-instructions.md`. Summarize their core rules.
+*   CI/CD Configuration: Analyze `.github/workflows/`, `Jenkinsfile`, `gitlab-ci.yml`, etc., to find the exact commands used in the automated pipeline.
+*   Build Scripts & Package Managers: Examine `Makefile`, `package.json`, `pom.xml`, `pyproject.toml`, etc., for build, test, and linting commands.
+*   Existing Documentation: Review `README.md` and `CONTRIBUTING.md` for stated conventions.
+*   Source Code: Infer coding patterns, naming conventions, and error handling strategies directly from the code if they are not explicitly documented.
+
+2. `AGENTS.md` Content Generation
+
+Generate the Markdown content for `AGENTS.md`. The file must be concise and adhere strictly to the following structure and content requirements.
+
+#### Build & Test Protocol
+
+*   Build Command: Provide the single, exact command to build the project from a clean state.
+*   Linting Command: Provide the command to run all code style and quality checks.
+*   Full Test Suite: Provide the command to execute every test in the repository.
+*   Single Test Execution: *Crucially*, document the precise command and syntax for running a *single, specific test file or test case*.
+
+#### Code Style Mandates
+
+*   Import Ordering: Define the required sequence (e.g., standard libraries, third-party, local modules).
+*   Formatting: Identify the tool (`Prettier`, `black`, `gofmt`) and provide the exact command to auto-format all relevant files.
+*   Typing: Specify the project's standard for type hints and static analysis (e.g., `TypeScript`, `mypy`, Sorbet).
+*   Naming Conventions: Summarize the rules for variables, functions, and classes (e.g., `camelCase` for variables, `PascalCase` for classes).
+*   Error Handling: Describe the required pattern for handling errors (e.g., must use exceptions, `Result`/`Either` monads, or specific error return values).
+
+---
+
+### Critical Constraints
+
+*   Output Format: Your final output must be only the raw Markdown content for the `AGENTS.md` file. Do not include any preambles, explanations, or backticks enclosing the entire document.
+*   Conciseness: The document must be a model of information density. Aim for a total length of approximately 20 lines. Every word must serve a purpose. Eliminate all fluff and commentary.
+*   Existing `AGENTS.md` File: If an `AGENTS.md` file already exists at `${path}`, your task is to replace it with a new version that fully conforms to this protocol. Do not append to or partially modify the existing file. Your generated content will overwrite it.
