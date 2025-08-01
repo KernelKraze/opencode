@@ -28,6 +28,13 @@ async function getRepoInfo() {
 const repoInfo = await getRepoInfo()
 console.log(`检测到仓库: ${repoInfo.fullName}`)
 
+// 获取项目根目录的绝对路径
+const projectRoot = process.cwd().includes("packages/opencode")
+  ? process.cwd().split("packages/opencode")[0]
+  : process.cwd()
+const tuiPath = `${projectRoot}/packages/tui`
+const outputBasePath = `${projectRoot}/packages/opencode/dist`
+
 const version = snapshot
   ? `0.0.0-${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "")}`
   : await $`git describe --tags --abbrev=0`
@@ -63,8 +70,8 @@ for (const [os, arch] of targets) {
   console.log(`building ${os}-${arch}`)
   const name = `${pkg.name}-${os}-${arch}`
   await $`mkdir -p dist/${name}/bin`
-  await $`CGO_ENABLED=0 GOOS=${os} GOARCH=${GOARCH[arch]} go build -ldflags="-s -w -X main.Version=${version}" -o ../opencode/dist/${name}/bin/tui ./cmd/opencode/main.go`.cwd(
-    "../tui",
+  await $`CGO_ENABLED=0 GOOS=${os} GOARCH=${GOARCH[arch]} go build -ldflags="-s -w -X main.Version=${version}" -o ${outputBasePath}/${name}/bin/tui ./cmd/opencode/main.go`.cwd(
+    tuiPath,
   )
   await $`bun build --define OPENCODE_VERSION="'${version}'" --compile --minify --target=bun-${os}-${arch} --outfile=dist/${name}/bin/opencode ./src/index.ts ./dist/${name}/bin/tui`
   await $`rm -rf ./dist/${name}/bin/tui`
