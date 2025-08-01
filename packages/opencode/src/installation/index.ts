@@ -9,6 +9,25 @@ declare global {
   const OPENCODE_VERSION: string
 }
 
+// 动态获取当前仓库信息
+async function getRepoInfo() {
+  try {
+    const remoteUrl = await $`git config --get remote.origin.url`.text().then((x) => x.trim())
+
+    // 支持 SSH 和 HTTPS 格式
+    const match = remoteUrl.match(/github\.com[:/](.+?)(?:\.git)?$/)
+    if (!match) {
+      // 如果无法获取仓库信息，回退到默认值
+      return "sst/opencode"
+    }
+
+    return match[1] // 返回 owner/repo 格式
+  } catch {
+    // Git 命令失败时，回退到默认值
+    return "sst/opencode"
+  }
+}
+
 export namespace Installation {
   const log = Log.create({ service: "installation" })
 
@@ -138,7 +157,8 @@ export namespace Installation {
   export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "dev"
 
   export async function latest() {
-    return fetch("https://api.github.com/repos/sst/opencode/releases/latest")
+    const repoFullName = await getRepoInfo()
+    return fetch(`https://api.github.com/repos/${repoFullName}/releases/latest`)
       .then((res) => res.json())
       .then((data) => {
         if (typeof data.tag_name !== "string") {
