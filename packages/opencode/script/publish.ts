@@ -6,6 +6,7 @@ import pkg from "../package.json"
 
 const dry = process.argv.includes("--dry")
 const snapshot = process.argv.includes("--snapshot")
+const skipNpm = process.env["SKIP_NPM_PUBLISH"] === "true" || !process.env["NPM_CONFIG_TOKEN"]
 
 // 动态获取当前仓库信息
 async function getRepoInfo() {
@@ -62,8 +63,8 @@ for (const [os, arch] of targets) {
   console.log(`building ${os}-${arch}`)
   const name = `${pkg.name}-${os}-${arch}`
   await $`mkdir -p dist/${name}/bin`
-  await $`CGO_ENABLED=0 GOOS=${os} GOARCH=${GOARCH[arch]} go build -ldflags="-s -w -X main.Version=${version}" -o ../opencode/dist/${name}/bin/tui ../tui/cmd/opencode/main.go`.cwd(
-    "../tui",
+  await $`CGO_ENABLED=0 GOOS=${os} GOARCH=${GOARCH[arch]} go build -ldflags="-s -w -X main.Version=${version}" -o ../../opencode/dist/${name}/bin/tui ./cmd/opencode/main.go`.cwd(
+    "../../packages/tui",
   )
   await $`bun build --define OPENCODE_VERSION="'${version}'" --compile --minify --target=bun-${os}-${arch} --outfile=dist/${name}/bin/opencode ./src/index.ts ./dist/${name}/bin/tui`
   await $`rm -rf ./dist/${name}/bin/tui`
@@ -79,7 +80,13 @@ for (const [os, arch] of targets) {
       2,
     ),
   )
-  if (!dry) await $`cd dist/${name} && bun publish --access public --tag ${npmTag}`
+  if (!dry && !skipNpm) {
+    try {
+      await $`cd dist/${name} && bun publish --access public --tag ${npmTag}`
+    } catch (err) {
+      console.warn(`跳过NPM发布 ${name}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  }
   optionalDependencies[name] = version
 }
 
@@ -103,7 +110,13 @@ await Bun.file(`./dist/${pkg.name}/package.json`).write(
     2,
   ),
 )
-if (!dry) await $`cd ./dist/${pkg.name} && bun publish --access public --tag ${npmTag}`
+if (!dry && !skipNpm) {
+  try {
+    await $`cd ./dist/${pkg.name} && bun publish --access public --tag ${npmTag}`
+  } catch (err) {
+    console.warn(`跳过主包NPM发布: ${err instanceof Error ? err.message : String(err)}`)
+  }
+}
 
 if (!snapshot) {
   // Github Release
