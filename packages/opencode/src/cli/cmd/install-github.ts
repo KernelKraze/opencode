@@ -63,8 +63,8 @@ export const InstallGithubCommand = cmd({
         // Get repo info
         const info = await $`git remote get-url origin`.quiet().nothrow().text()
         // match https or git pattern
-        // ie. https://github.com/sst/opencode.git
-        // ie. git@github.com:sst/opencode.git
+        // ie. https://github.com/KernelKraze/opencode.git
+        // ie. git@github.com:KernelKraze/opencode.git
         const parsed = info.match(/git@github\.com:(.*)\.git/) ?? info.match(/github\.com\/(.*)\.git/)
         if (!parsed) {
           prompts.log.error(`Could not find git repository. Please run this command from a git repository.`)
@@ -182,6 +182,10 @@ export const InstallGithubCommand = cmd({
             ? ""
             : `\n        env:${providers[provider].env.map((e) => `\n          ${e}: \${{ secrets.${e} }}`).join("")}`
 
+        // 获取当前仓库信息用于 GitHub Action
+        const { owner, repo: repoName } = app
+        const githubActionRef = `${owner}/${repoName}/sdks/github@github-v1`
+
         await Bun.write(
           path.join(app.root, WORKFLOW_FILE),
           `
@@ -208,7 +212,7 @@ jobs:
           fetch-depth: 1
 
       - name: Run opencode
-        uses: sst/opencode/sdks/github@github-v1${envStr}
+        uses: ${githubActionRef}${envStr}
         with:
           model: ${provider}/${model}
 `.trim(),

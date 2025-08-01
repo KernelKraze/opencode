@@ -1,5 +1,23 @@
 #!/usr/bin/env bun
 
+import { $ } from "bun"
+
+// 动态获取当前仓库信息
+async function getRepoInfo() {
+  const remoteUrl = await $`git config --get remote.origin.url`.text().then((x) => x.trim())
+
+  // 支持 SSH 和 HTTPS 格式
+  const match = remoteUrl.match(/github\.com[:/](.+?)(?:\.git)?$/)
+  if (!match) {
+    console.error("无法解析 GitHub 仓库信息:", remoteUrl)
+    process.exit(1)
+  }
+
+  return match[1] // 返回 owner/repo 格式
+}
+
+const repoFullName = await getRepoInfo()
+
 interface Asset {
   name: string
   download_count: number
@@ -45,7 +63,7 @@ async function fetchReleases(): Promise<Release[]> {
   const per = 100
 
   while (true) {
-    const url = `https://api.github.com/repos/sst/opencode/releases?page=${page}&per_page=${per}`
+    const url = `https://api.github.com/repos/${repoFullName}/releases?page=${page}&per_page=${per}`
 
     const response = await fetch(url)
     if (!response.ok) {
@@ -160,7 +178,7 @@ async function save(githubTotal: number, npmDownloads: number) {
   )
 }
 
-console.log("Fetching GitHub releases for sst/opencode...\n")
+console.log(`Fetching GitHub releases for ${repoFullName}...\n`)
 
 const releases = await fetchReleases()
 console.log(`\nFetched ${releases.length} releases total\n`)
