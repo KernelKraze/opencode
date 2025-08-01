@@ -132,17 +132,44 @@ if (!snapshot) {
   }
 
   // GitHub Release 相关 API 调用现在使用动态仓库信息
+  // 处理首次发布场景：当仓库还没有任何release时，API返回404
   const previous = await fetch(`https://api.github.com/repos/${repoInfo.fullName}/releases/latest`)
     .then((res) => {
-      if (!res.ok) throw new Error(res.statusText)
+      if (!res.ok) {
+        if (res.status === 404) {
+          console.log("这是首次发布，没有找到之前的release")
+          return null
+        }
+        throw new Error(res.statusText)
+      }
       return res.json()
     })
-    .then((data) => data.tag_name)
+    .then((data) => data?.tag_name || null)
+    .catch((err) => {
+      console.log("获取最新release失败，可能是首次发布:", err.message)
+      return null
+    })
 
-  console.log("finding commits between", previous, "and", "HEAD")
-  const commits = await fetch(`https://api.github.com/repos/${repoInfo.fullName}/compare/${previous}...HEAD`)
-    .then((res) => res.json())
-    .then((data) => data.commits || [])
+  let commits = []
+  if (previous) {
+    console.log("finding commits between", previous, "and", "HEAD")
+    commits = await fetch(`https://api.github.com/repos/${repoInfo.fullName}/compare/${previous}...HEAD`)
+      .then((res) => res.json())
+      .then((data) => data.commits || [])
+      .catch((err) => {
+        console.log("获取commit对比失败:", err.message)
+        return []
+      })
+  } else {
+    console.log("首次发布，获取最近的commits作为release notes")
+    commits = await fetch(`https://api.github.com/repos/${repoInfo.fullName}/commits?per_page=10`)
+      .then((res) => res.json())
+      .then((data) => data || [])
+      .catch((err) => {
+        console.log("获取最近commits失败:", err.message)
+        return []
+      })
+  }
 
   const raw = commits.map((commit: any) => `- ${commit.commit.message.split("\n").join(" ")}`)
   console.log(raw)
