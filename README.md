@@ -14,7 +14,7 @@
   <a href="https://github.com/sst/opencode/actions/workflows/publish.yml"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/sst/opencode/publish.yml?style=flat-square&branch=dev" /></a>
 </p>
 
-[![opencode Terminal UI](packages/web/src/assets/lander/screenshot.png)](https://opencode.ai)
+[![opencode Terminal UI](packages/web/src/assets/lander/screenshot-splash.png)](https://opencode.ai)
 
 ---
 
