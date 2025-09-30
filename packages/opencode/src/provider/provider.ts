@@ -424,11 +424,17 @@ export namespace Provider {
     }
   }
 
-  const priority = ["gemini-2.5-pro-preview", "codex-mini", "claude-sonnet-4"]
+  const priority = ["claude-sonnet-4.5", "gemini-2.5-pro-preview", "codex-mini", "claude-sonnet-4"]
   export function sort(models: ModelsDev.Model[]) {
     return sortBy(
       models,
-      [(model) => priority.findIndex((filter) => model.id.includes(filter)), "desc"],
+      [
+        (model) => {
+          const index = priority.findIndex((filter) => model.id.includes(filter))
+          return index === -1 ? priority.length : index
+        },
+        "asc",
+      ],
       [(model) => (model.id.includes("latest") ? 0 : 1), "asc"],
       [(model) => model.id, "desc"],
     )
